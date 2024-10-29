@@ -16,7 +16,6 @@ type Task struct {
 	Applications []string `json:"applications"`
 }
 
-var buf bytes.Buffer
 var task Task
 
 var tasks = map[string]Task{
@@ -49,27 +48,27 @@ func getTasks(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func postTask(w http.ResponseWriter, r *http.Request) {
+	var buf bytes.Buffer
 
 	_, err := buf.ReadFrom(r.Body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if _, taskId := tasks[task.ID]; taskId {
+		http.Error(w, "Task already exists", http.StatusBadRequest)
+	}
 
 	tasks[task.ID] = task
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 }
@@ -91,27 +90,24 @@ func getTaskById(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	w.Write(resp)
+	_, err = w.Write(resp)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+
 }
 
 func deleteTask(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	task, ok := tasks[id]
-	delete(tasks, id)
-	_, err := buf.ReadFrom(r.Body)
-	if !ok {
-		http.Error(w, "task not found", http.StatusBadRequest)
+	if _, taskId := tasks[id]; taskId {
+		delete(tasks, id)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		return
 	}
-
-	if err = json.Unmarshal(buf.Bytes(), &task); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNotFound)
 }
 
 func main() {
